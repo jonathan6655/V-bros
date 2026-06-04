@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V-Bros Tech Lab | Reparación de Celulares por Jair & Jonathan</title>
+    <!-- Tailwind CSS para diseño responsivo rápido y fluido en dispositivos móviles -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fuentes premium de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Iconos profesionales de FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            darkbg: '#0a0b10',       // Fondo espacial oscuro del laboratorio
+                            cardbg: '#121420',       // Fondo de las tarjetas de circuitos
+                            accent: '#00f0ff',       // Cyan neón para simular el microscopio
+                            accentPurple: '#8b5cf6', // Violeta neón de cautín y soldadura
+                            accentGreen: '#10b981',  // Verde de WhatsApp para llamadas a la acción
+                            textGray: '#94a3b8',     // Gris elegante para textos secundarios
+                        }
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 20px rgba(0, 240, 255, 0.25)',
+                        'neon-purple': '0 0 20px rgba(139, 92, 246, 0.25)',
+                        'neon-green': '0 0 20px rgba(16, 185, 129, 0.3)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0b10;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        /* Barra de desplazamiento estética neón */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0b10;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f0ff;
+        }
+        /* Línea de escaneo láser animada estilo microscopio */
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scan-effect::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(to bottom, transparent, #00f0ff, transparent);
+            animation: scanline 6s linear infinite;
+        }
+        /* Personalización de la barra de antes/después */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #00f0ff;
+            cursor: ew-resize;
+            box-shadow: 0 0 15px #00f0ff;
+            border: 3px solid #ffffff;
+            transition: transform 0.1s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+
+<script type="module">
+    // 1. Importaciones unificadas EXCLUSIVAMENTE a la versión 12.14.0
+    // Importaciones unificadas a la versión estable 10.12.2
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
+    import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, setDoc, collection, addDoc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // 2. Tu configuración oficial de Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyB99owclYw9GqPVKtQvncDkXilyVTVFrDQ",
+        authDomain: "v-bros-da889.firebaseapp.com",
+        projectId: "v-bros-da889",
+        storageBucket: "v-bros-da889.firebasestorage.app",
+        messagingSenderId: "633779434302",
+        appId: "1:633779434302:web:fa49dcdac5b73dda31b26f",
+        measurementId: "G-PT8MC8VS3K"
+    };
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'valero-bros-tech';
+
+    // 3. Inicializar Firebase Completo
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app); 
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // --- TEST DE CONEXIÓN ---
+    async function probarEscritura() {
+        try {
+            const docRef = await addDoc(collection(db, "prueba_conexion"), {
+                mensaje: "¡Hola! Ya estoy conectado desde la versión 12.14.0",
+                fecha: new Date().toISOString()
+            });
+            console.log("✅ ÉXITO: Documento creado con ID:", docRef.id);
+        } catch (e) {
+            console.error("❌ ERROR al escribir en Firestore:", e);
+        }
+    }
+    // Llama a la prueba (puedes borrar esta línea cuando confirmes que funciona)
+    probarEscritura();
+
+    // 4. Variables de estado del cotizador
+    let isAdmin = false;
+    let catalogData = { brands: [] };
+    let currentStep = 'brands'; 
+    let selection = { brandIndex: null, modelIndex: null, issueIndex: null };
+
+    // Rutas dinámicas de Firestore
+    const catalogRef = doc(db, 'artifacts', appId, 'public', 'data', 'catalogs', 'main');
+    const reviewsRef = collection(db, 'artifacts', appId, 'public', 'data', 'reviews');
+
+    // Catálogo base inicial por defecto
+    const defaultCatalog = {
+        brands: [
+            {
+                name: 'Apple',
+                icon: 'fa-apple',
+                models: [
+                    {
+                        name: 'iPhone 14 Pro Max',
+                        issues: [
+                            { name: 'Pin de Carga / Puerto', price: '450 - 750', icon: 'fa-plug' },
+                            { name: 'Cambio de Batería', price: '600 - 900', icon: 'fa-battery-three-quarters' }
+                        ]
+                    }
+                ]
+            },
+            {
+                name: 'Samsung',
+                icon: 'fa-mobile-retro',
+                models: [
+                    {
+                        name: 'Galaxy S23 Ultra',
+                        issues: [
+                            { name: 'Pin de Carga / Puerto', price: '500 - 850', icon: 'fa-plug' }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+
+    // 5. Inicialización de la App Web
+    async function initApp() {
+        try {
+            await signInAnonymously(auth);
+            
+            // Cargar o inicializar el catálogo en Firestore
+            onSnapshot(catalogRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    catalogData = snapshot.data();
+                } else {
+                    setDoc(catalogRef, defaultCatalog);
+                    catalogData = defaultCatalog;
+                }
+                renderCotizador();
+            }, (error) => {
+                console.error("Fallo al descargar el catálogo:", error);
+            });
+
+            // Arrancar el cargador de opiniones de clientes
+            initReviewsSystem();
+        } catch (e) {
+            console.error("Fallo en la conexión segura inicial:", e);
+        }
+    }
+
+    // Funciones del renderizado del cotizador
+    function renderCotizador() {
+        const container = document.getElementById('dynamic-quote-flow');
+        if (!container) return;
+        container.style.opacity = 0;
+        setTimeout(() => {
+            if (currentStep === 'brands') renderBrandsStep(container);
+            else if (currentStep === 'models') renderModelsStep(container);
+            else if (currentStep === 'issues') renderIssuesStep(container);
+            else if (currentStep === 'summary') renderSummaryStep(container);
+            container.style.opacity = 1;
+        }, 150);
+    }
+
+    function renderBrandsStep(container) {
+        let html = `<h3 class="text-xl font-bold mb-6 text-white text-center">Paso 1: ¿Cuál es la marca de tu dispositivo?</h3><div class="grid grid-cols-2 sm:grid-cols-3 gap-4">`;
+        catalogData.brands.forEach((brand, idx) => {
+            html += `
+                <div class="relative group">
+                    <button onclick="window.selectBrand(${idx})" class="w-full p-6 bg-[#181b2a] border-2 border-transparent hover:border-cyan-500/50 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 transition-all duration-200">
+                        <i class="fa-brands ${brand.icon || 'fa-mobile-retro'} text-3xl"></i>
+                        <span class="text-sm font-semibold">${brand.name}</span>
+                    </button>
+                    ${isAdmin ? `<button onclick="window.adminEditBrand(${idx})" class="absolute top-2 right-2 w-8 h-8 bg-brand-accentPurple rounded-full flex items-center justify-center shadow-lg text-white hover:bg-purple-400 transition pointer-events-auto"><i class="fa-solid fa-pen text-xs"></i></button>` : ''}
+                </div>`;
+        });
+        if (isAdmin) {
+            html += `<button onclick="window.adminAddBrand()" class="p-6 border-2 border-dashed border-brand-accentPurple/50 rounded-2xl flex flex-col items-center justify-center text-brand-accentPurple hover:bg-brand-accentPurple/10 transition"><i class="fa-solid fa-plus text-2xl mb-2"></i><span class="font-bold text-sm">Añadir Marca</span></button>`;
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function renderModelsStep(container) {
+        const brand = catalogData.brands[selection.brandIndex];
+        let html = `<div class="flex items-center mb-6"><button onclick="window.goBack('brands')" class="text-slate-400 hover:text-white mr-4"><i class="fa-solid fa-arrow-left"></i> Volver</button><h3 class="text-xl font-bold text-white">Paso 2: Elige el Modelo de <span class="text-brand-accent">${brand.name}</span></h3></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4">`;
+        if (brand.models && brand.models.length > 0) {
+            brand.models.forEach((model, idx) => {
+                html += `
+                    <div class="relative group">
+                        <button onclick="window.selectModel(${idx})" class="w-full text-left p-4 bg-[#181b2a] border-2 border-transparent hover:border-cyan-500/50 rounded-2xl flex items-center space-x-4 transition-all duration-200">
+                            <div class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                            <span class="font-bold text-sm text-white">${model.name}</span>
+                        </button>
+                        ${isAdmin ? `<button onclick="window.adminEditModel(${idx})" class="absolute top-1/2 -translate-y-1/2 right-4 w-8 h-8 bg-brand-accentPurple rounded-full flex items-center justify-center shadow-lg text-white hover:bg-purple-400 transition pointer-events-auto"><i class="fa-solid fa-pen text-xs"></i></button>` : ''}
+                    </div>`;
+            });
+        } else {
+            html += `<p class="col-span-full text-slate-500 text-center py-4">No hay modelos registrados para esta marca.</p>`;
+        }
+        if (isAdmin) {
+            html += `<button onclick="window.adminAddModel()" class="p-4 border-2 border-dashed border-brand-accentPurple/50 rounded-2xl flex items-center justify-center text-brand-accentPurple hover:bg-brand-accentPurple/10 transition font-bold text-sm"><i class="fa-solid fa-plus mr-2"></i> Añadir Modelo</button>`;
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function renderIssuesStep(container) {
+        const brand = catalogData.brands[selection.brandIndex];
+        const model = brand.models[selection.modelIndex];
+        let html = `<div class="flex items-center mb-6"><button onclick="window.goBack('models')" class="text-slate-400 hover:text-white mr-4"><i class="fa-solid fa-arrow-left"></i> Volver</button><h3 class="text-xl font-bold text-white">Paso 3: Falla en tu <span class="text-brand-accent">${model.name}</span></h3></div><div class="grid grid-cols-1 sm:grid-cols-2 gap-4">`;
+        if (model.issues && model.issues.length > 0) {
+            model.issues.forEach((issue, idx) => {
+                html += `
+                    <div class="relative group">
+                        <button onclick="window.selectIssue(${idx})" class="w-full text-left p-4 bg-[#181b2a] border-2 border-transparent hover:border-cyan-500/50 rounded-2xl flex items-center space-x-4 transition-all duration-200">
+                            <div class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg"><i class="fa-solid ${issue.icon || 'fa-wrench'}"></i></div>
+                            <div class="text-left"><span class="block font-bold text-sm text-white">${issue.name}</span><span class="text-xs text-brand-accentGreen font-mono font-bold">$${issue.price} MXN</span></div>
+                        </button>
+                        ${isAdmin ? `<button onclick="window.adminEditIssue(${idx})" class="absolute top-1/2 -translate-y-1/2 right-4 w-8 h-8 bg-brand-accentPurple rounded-full flex items-center justify-center shadow-lg text-white hover:bg-purple-400 transition pointer-events-auto"><i class="fa-solid fa-pen text-xs"></i></button>` : ''}
+                    </div>`;
+            });
+        } else {
+            html += `<p class="col-span-full text-slate-500 text-center py-4">No hay fallas registradas aún.</p>`;
+        }
+        if (isAdmin) {
+            html += `<button onclick="window.adminAddIssue()" class="p-4 border-2 border-dashed border-brand-accentPurple/50 rounded-2xl flex items-center justify-center text-brand-accentPurple hover:bg-brand-accentPurple/10 transition font-bold text-sm"><i class="fa-solid fa-plus mr-2"></i> Añadir Falla / Precio</button>`;
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function renderSummaryStep(container) {
+        const brand = catalogData.brands[selection.brandIndex];
+        const model = brand.models[selection.modelIndex];
+        const issue = model.issues[selection.issueIndex];
+        container.innerHTML = `
+            <div class="text-center py-6">
+                <div class="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-3xl mx-auto mb-4"><i class="fa-solid fa-calculator-combined"></i></div>
+                <h3 class="text-2xl font-extrabold text-white">¡Cotización Lista!</h3>
+                <div class="bg-brand-darkbg/60 p-6 rounded-2xl max-w-md mx-auto space-y-4 border border-white/5 mt-4">
+                    <div class="flex justify-between text-slate-400 text-sm"><span>Marca:</span><span class="font-bold text-white">${brand.name} ${model.name}</span></div>
+                    <div class="flex justify-between text-slate-400 text-sm"><span>Falla:</span><span class="font-bold text-white">${issue.name}</span></div>
+                    <hr class="border-white/5">
+                    <div class="flex justify-between items-center text-slate-300"><span class="text-sm font-bold">Costo Estimado:*</span><span class="text-2xl font-extrabold text-cyan-400 tracking-tight">$${issue.price} MXN</span></div>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center pt-6 max-w-md mx-auto">
+                    <button onclick="window.goBack('issues')" class="px-5 py-3 rounded-xl border border-white/10 hover:border-white/20 text-slate-300 font-bold transition-all text-sm w-full sm:w-auto"><i class="fa-solid fa-arrow-left mr-2"></i>Ajustar</button>
+                    <button onclick="window.sendQuoteToWhatsApp()" class="px-8 py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-brand-darkbg font-extrabold shadow-neon-green transition-all duration-300 flex items-center justify-center gap-2 w-full"><i class="fa-brands fa-whatsapp text-xl"></i><span>Enviar Cotización a WhatsApp</span></button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Funciones globales para botones
+    window.selectBrand = (idx) => { selection.brandIndex = idx; currentStep = 'models'; renderCotizador(); };
+    window.selectModel = (idx) => { selection.modelIndex = idx; currentStep = 'issues'; renderCotizador(); };
+    window.selectIssue = (idx) => { selection.issueIndex = idx; currentStep = 'summary'; renderCotizador(); };
+    window.goBack = (step) => { currentStep = step; renderCotizador(); };
+
+    window.sendQuoteToWhatsApp = () => {
+        const brand = catalogData.brands[selection.brandIndex];
+        const model = brand.models[selection.modelIndex];
+        const issue = model.issues[selection.issueIndex];
+        const text = `Hola V-Bros Tech Lab, acabo de cotizar en su sitio web.\n\nDetalles:\n- Marca: ${brand.name}\n- Modelo: ${model.name}\n- Falla: ${issue.name}\n- Precio Estimado: $${issue.price} MXN\n\n¿Tienen disponibilidad hoy para revisar mi equipo?`;
+        window.open(`https://wa.me/5218114186210?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    // Funciones de Base de Datos y Modales
+    const customModal = document.getElementById('custom-input-modal');
+    const cimTitle = document.getElementById('cim-title');
+    const cimContainer = document.getElementById('cim-fields-container');
+    const cimSaveBtn = document.getElementById('cim-save-btn');
+    let saveAction = null;
+
+    window.closeCustomInputModal = () => { customModal.classList.add('hidden'); };
+    function openCustomModal(title, fieldsHtml, onSave) {
+        cimTitle.innerText = title;
+        cimContainer.innerHTML = fieldsHtml;
+        saveAction = onSave;
+        customModal.classList.remove('hidden');
+    }
+
+    cimSaveBtn.addEventListener('click', () => { if (saveAction) saveAction(); });
+
+    async function saveCatalog() {
+        try {
+            await setDoc(catalogRef, catalogData);
+            closeCustomInputModal();
+            renderCotizador();
+            showToast("Catálogo actualizado en Firestore.");
+        } catch (e) {
+            console.error(e);
+            showToast("Error al guardar. Revisa tus reglas de seguridad.");
+        }
+    }
+
+    // Lógica CRUD de Admin (Marcas, Modelos, Fallas)
+    window.adminAddBrand = () => {
+        openCustomModal("Añadir Nueva Marca", `<div><label class="block text-xs text-slate-300 mb-1">Nombre</label><input type="text" id="m-brand-name" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"></div>`, () => {
+            const name = document.getElementById('m-brand-name').value.trim();
+            if (name) { catalogData.brands.push({ name, icon: 'fa-mobile-retro', models: [] }); saveCatalog(); }
+        });
+    };
+    window.adminEditBrand = (idx) => {
+        openCustomModal("Editar Marca", `<div><label class="block text-xs text-slate-300 mb-1">Nombre</label><input type="text" id="m-brand-name" value="${catalogData.brands[idx].name}" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"></div><button onclick="window.adminDeleteBrand(${idx})" class="w-full py-2 bg-red-500/10 text-red-400 rounded-xl mt-4">Eliminar</button>`, () => {
+            catalogData.brands[idx].name = document.getElementById('m-brand-name').value.trim(); saveCatalog();
+        });
+    };
+    window.adminDeleteBrand = (idx) => { catalogData.brands.splice(idx, 1); saveCatalog(); };
+    window.adminAddModel = () => {
+        openCustomModal("Añadir Modelo", `<div><label class="block text-xs text-slate-300 mb-1">Modelo</label><input type="text" id="m-model-name" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"></div>`, () => {
+            const name = document.getElementById('m-model-name').value.trim();
+            if (name) { catalogData.brands[selection.brandIndex].models.push({ name, issues: [] }); saveCatalog(); }
+        });
+    };
+    window.adminEditModel = (idx) => {
+        openCustomModal("Editar Modelo", `<div><label class="block text-xs text-slate-300 mb-1">Modelo</label><input type="text" id="m-model-name" value="${catalogData.brands[selection.brandIndex].models[idx].name}" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"></div><button onclick="window.adminDeleteModel(${idx})" class="w-full py-2 bg-red-500/10 text-red-400 rounded-xl mt-4">Eliminar</button>`, () => {
+            catalogData.brands[selection.brandIndex].models[idx].name = document.getElementById('m-model-name').value.trim(); saveCatalog();
+        });
+    };
+    window.adminDeleteModel = (idx) => { catalogData.brands[selection.brandIndex].models.splice(idx, 1); saveCatalog(); };
+    window.adminAddIssue = () => {
+        openCustomModal("Añadir Falla", `<div><label class="block text-xs text-slate-300 mb-1">Falla</label><input type="text" id="m-issue-name" class="w-full mb-2 bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"><label class="block text-xs text-slate-300 mb-1">Precio</label><input type="text" id="m-issue-price" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"></div>`, () => {
+            const name = document.getElementById('m-issue-name').value.trim(), price = document.getElementById('m-issue-price').value.trim();
+            if (name && price) { catalogData.brands[selection.brandIndex].models[selection.modelIndex].issues.push({ name, price, icon: 'fa-wrench' }); saveCatalog(); }
+        });
+    };
+    window.adminEditIssue = (idx) => {
+        const issue = catalogData.brands[selection.brandIndex].models[selection.modelIndex].issues[idx];
+        openCustomModal("Editar Falla", `<div><label class="block text-xs text-slate-300 mb-1">Falla</label><input type="text" id="m-issue-name" value="${issue.name}" class="w-full mb-2 bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"><label class="block text-xs text-slate-300 mb-1">Precio</label><input type="text" id="m-issue-price" value="${issue.price}" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white"></div><button onclick="window.adminDeleteIssue(${idx})" class="w-full py-2 bg-red-500/10 text-red-400 rounded-xl mt-4">Eliminar</button>`, () => {
+            issue.name = document.getElementById('m-issue-name').value.trim(); issue.price = document.getElementById('m-issue-price').value.trim(); saveCatalog();
+        });
+    };
+    window.adminDeleteIssue = (idx) => { catalogData.brands[selection.brandIndex].models[selection.modelIndex].issues.splice(idx, 1); saveCatalog(); };
+
+    // Autenticación de Administrador
+    window.openAdminLoginModal = () => document.getElementById('admin-login-modal').classList.remove('hidden');
+    window.closeAdminLoginModal = () => document.getElementById('admin-login-modal').classList.add('hidden');
+
+    window.attemptAdminLogin = async () => {
+        const email = document.getElementById('admin-email').value.trim();
+        const pass = document.getElementById('admin-password').value;
+        const errBox = document.getElementById('admin-login-error');
+
+        if (email !== "valebros65@gmail.com") {
+            errBox.innerText = "Acceso restringido."; errBox.classList.remove('hidden'); return;
+        }
+
+        try {
+            await signInWithEmailAndPassword(auth, email, pass);
+            closeAdminLoginModal();
+            showToast("🔓 Sesión de Admin iniciada.");
+        } catch (e) {
+            if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found') {
+                if (pass === "admin") {
+                    try {
+                        await createUserWithEmailAndPassword(auth, email, pass);
+                        closeAdminLoginModal(); showToast("🎉 Cuenta admin inicializada."); return;
+                    } catch (err) { errBox.innerText = err.message; errBox.classList.remove('hidden'); }
+                } else {
+                    errBox.innerText = "Contraseña incorrecta. (Prueba 'admin' si es la primera vez)."; errBox.classList.remove('hidden');
+                }
+            } else { errBox.innerText = e.message; errBox.classList.remove('hidden'); }
+        }
+    };
+
+    window.openChangePasswordModal = () => document.getElementById('change-password-modal').classList.remove('hidden');
+    window.closeChangePasswordModal = () => { document.getElementById('change-password-modal').classList.add('hidden'); document.getElementById('new-admin-password').value = ''; };
+    window.submitChangePassword = async () => {
+        const newPass = document.getElementById('new-admin-password').value.trim();
+        if (newPass.length < 6) return;
+        try {
+            if (auth.currentUser) { await updatePassword(auth.currentUser, newPass); window.closeChangePasswordModal(); showToast("🔐 Contraseña actualizada."); }
+        } catch (e) { document.getElementById('change-pass-error').innerText = e.message; document.getElementById('change-pass-error').classList.remove('hidden'); }
+    };
+
+    // Sistema de Reseñas
+    function initReviewsSystem() {
+        window.handleReviewSubmit = async (event) => {
+            event.preventDefault();
+            const name = document.getElementById('rev-name').value.trim(), device = document.getElementById('rev-device').value.trim(), text = document.getElementById('rev-text').value.trim(), rating = parseInt(document.getElementById('rev-rating').value);
+            try {
+                await addDoc(reviewsRef, { name, device, text, rating, createdAt: serverTimestamp() });
+                document.getElementById('review-submission-form').reset(); window.selectStars(5); showToast("🎉 Reseña publicada!");
+            } catch (e) { console.error(e); showToast("Error al publicar."); }
+        };
+
+        onSnapshot(query(reviewsRef), (snapshot) => {
+            const container = document.getElementById('reviews-feed-container'), counter = document.getElementById('reviews-counter-label');
+            if (snapshot.empty) { container.innerHTML = `<p class="text-center text-slate-400 py-10">Aún no hay reseñas.</p>`; return; }
+            counter.innerText = `Reviews (${snapshot.size})`;
+            let html = '';
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                let stars = ''; for (let i = 1; i <= 5; i++) stars += i <= data.rating ? `<i class="fa-solid fa-star text-amber-400 text-xs"></i>` : `<i class="fa-regular fa-star text-slate-600 text-xs"></i>`;
+                html += `<div class="bg-[#121420] border border-white/5 rounded-3xl p-6 shadow-xl mb-4"><div class="flex justify-between border-b border-white/5 pb-4 mb-4"><div class="flex items-center space-x-3"><div class="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-black uppercase">${data.name.charAt(0)}</div><div><span class="block text-sm font-bold text-white">${data.name}</span><span class="text-[10px] text-slate-400 font-mono">Reparación: ${data.device}</span></div></div><div>${stars}</div></div><p class="text-xs text-slate-300">${data.text}</p></div>`;
+            });
+            container.innerHTML = html;
+        });
+    }
+
+    window.selectStars = (count) => {
+        document.getElementById('rev-rating').value = count;
+        document.querySelectorAll('#star-selector-container i').forEach((star, index) => { star.className = index < count ? "fa-solid fa-star text-amber-400 cursor-pointer transition-transform hover:scale-110" : "fa-regular fa-star text-slate-600 cursor-pointer transition-transform hover:scale-110"; });
+    };
+
+    onAuthStateChanged(auth, (user) => {
+        if (user && user.email === "valebros65@gmail.com") { isAdmin = true; document.getElementById('admin-indicator-badge').classList.remove('hidden'); } 
+        else { isAdmin = false; document.getElementById('admin-indicator-badge').classList.add('hidden'); }
+        renderCotizador();
+    });
+
+    initApp();
+</script>
+
+<body class="selection:bg-cyan-500 selection:text-black">
+
+<!-- Contenedor para notificaciones (Toast) - Crucial para que showToast() funcione -->
+<div id="toast-container" class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none"></div>
+
+<header class="fixed top-0 left-0 w-full z-50 bg-brand-darkbg/80 backdrop-blur-md border-b border-white/5 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <!-- Logotipo Hexagonal Oficial de Jair & Jonathan -->
+        <a href="#" class="flex items-center space-x-3 group">
+            <div class="w-12 h-12 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
+                <svg class="w-11 h-11 drop-shadow-[0_0_10px_rgba(0,240,255,0.4)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="logo-grad-header" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#00f0ff" />
+                            <stop offset="100%" stop-color="#8b5cf6" />
+                        </linearGradient>
+                    </defs>
+                    <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" stroke="url(#logo-grad-header)" stroke-width="4" stroke-linejoin="round" fill="#121420" fill-opacity="0.95"/>
+                    <path d="M30 34 L48 68 L66 34" stroke="url(#logo-grad-header)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M48 34 H60 C67 34 69 47 62 50 C69 52 67 68 54 68 H48" stroke="url(#logo-grad-header)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="30" cy="34" r="4.5" fill="#00f0ff" />
+                    <circle cx="66" cy="34" r="4.5" fill="#8b5cf6" />
+                    <circle cx="54" cy="68" r="4.5" fill="#8b5cf6" />
+                </svg>
+            </div>
+            <div>
+                <span class="text-xl font-extrabold tracking-wider bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">V-BROS</span>
+                <span class="text-xs block text-slate-400 font-mono tracking-widest">TECH LAB & MICROFIX</span>
+            </div>
+        </a>
+        
+        <!-- Menú de enlaces principales -->
+        <nav class="hidden md:flex space-x-8 text-sm font-medium tracking-wide">
+            <a href="#servicios" class="text-slate-300 hover:text-cyan-400 transition-colors">Servicios</a>
+            <a href="#microscopio-demo" class="text-slate-300 hover:text-cyan-400 transition-colors">Ver Microscopio</a>
+            <a href="#cotizador" class="text-slate-300 hover:text-cyan-400 transition-colors">Cotizador Express</a>
+            <a href="#laboratorio" class="text-slate-300 hover:text-cyan-400 transition-colors">Los Hermanos Valero</a>
+            <a href="#asmr-hub" class="text-slate-300 hover:text-cyan-400 transition-colors">ASMR Tech</a>
+            <a href="#resenas-clientes" class="text-slate-300 hover:text-cyan-400 transition-colors">Reseñas Reales</a>
+        </nav>
+        
+        <!-- Botón de WhatsApp rápido en cabecera -->
+        <div class="flex items-center space-x-4">
+            <a href="#cotizador" class="hidden sm:inline-flex px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-brand-darkbg font-bold text-sm tracking-wide shadow-neon-cyan transition-all duration-300 transform hover:-translate-y-0.5">
+                <i class="fa-solid fa-calculator mr-2"></i>Cotizar Ahora
+            </a>
+            <button onclick="toggleMobileMenu()" class="md:hidden w-10 h-10 rounded-lg flex items-center justify-center text-slate-300 hover:text-cyan-400 focus:outline-none">
+                <i id="menu-icon" class="fa-solid fa-bars text-xl"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Menú desplegable para celulares -->
+    <div id="mobile-menu" class="hidden md:hidden bg-brand-darkbg/95 border-b border-white/10 px-4 py-6 space-y-4 text-center">
+        <a href="#servicios" onclick="toggleMobileMenu()" class="block text-slate-300 hover:text-cyan-400 py-2 text-lg">Servicios</a>
+        <a href="#microscopio-demo" onclick="toggleMobileMenu()" class="block text-slate-300 hover:text-cyan-400 py-2 text-lg">Ver Microscopio</a>
+        <a href="#cotizador" onclick="toggleMobileMenu()" class="block text-slate-300 hover:text-cyan-400 py-2 text-lg">Cotizador Express</a>
+        <a href="#laboratorio" onclick="toggleMobileMenu()" class="block text-slate-300 hover:text-cyan-400 py-2 text-lg">Los Hermanos Valero</a>
+        <a href="#asmr-hub" onclick="toggleMobileMenu()" class="block text-slate-300 hover:text-cyan-400 py-2 text-lg">ASMR Tech</a>
+        <a href="#resenas-clientes" onclick="toggleMobileMenu()" class="block text-slate-300 hover:text-cyan-400 py-2 text-lg">Reseñas Reales</a>
+        <a href="#cotizador" onclick="toggleMobileMenu()" class="inline-flex w-full justify-center px-5 py-3 rounded-xl bg-cyan-500 text-brand-darkbg font-bold shadow-neon-cyan">
+            <i class="fa-solid fa-calculator mr-2 self-center"></i>Cotizar Ahora
+        </a>
+    </div>
+</header>
+
+<section class="relative min-h-screen pt-32 pb-16 flex items-center justify-center overflow-hidden">
+    <div class="absolute top-1/4 left-10 w-72 h-72 rounded-full bg-cyan-600/10 blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-1/4 right-10 w-96 h-96 rounded-full bg-purple-600/10 blur-[150px] pointer-events-none"></div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <!-- Textos de introducción -->
+        <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+            <div class="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-mono tracking-widest uppercase">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span>Laboratorio Valero Reyes • Jair y Jonathan</span>
+            </div>
+            
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
+                Reparaciones <br class="hidden sm:block">
+                <span class="bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">Transparentes</span> por Jair & Jonathan
+            </h1>
+            
+            <p class="text-slate-300 text-base sm:text-lg md:text-xl max-w-2xl mx-auto lg:mx-0 font-light leading-relaxed">
+                En el internet de hoy, la honestidad es rey. En V-Bros Tech Lab no escondemos tu celular. Mira tu placa repararse bajo microscopio real con técnicas de soldadura estables y micas perfectas.
+            </p>
+            
+            <!-- Ventajas en lista -->
+            <div class="grid grid-cols-2 gap-4 max-w-md mx-auto lg:mx-0 py-2 text-left text-sm text-slate-300">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-check text-cyan-400"></i>
+                    <span>Diagnóstico de Jair & Jonathan</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-check text-cyan-400"></i>
+                    <span>Micro-Soldadura de Pines</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-check text-cyan-400"></i>
+                    <span>Micas de Vidrio 100% Sin Aire</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-check text-cyan-400"></i>
+                    <span>Limpieza Química Isopropílica</span>
+                </div>
+            </div>
+
+            <!-- Botón del Canal de WhatsApp -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-4">
+                <a href="https://whatsapp.com/channel/0029VbD3R531XqucsjLWmm3L" target="_blank" class="px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-500 text-brand-darkbg font-extrabold text-base tracking-wide shadow-neon-cyan hover:shadow-neon-purple transition-all duration-300 transform hover:-translate-y-1 flex items-center justify-center">
+                    <i class="fa-brands fa-whatsapp text-lg mr-2"></i>Seguir Canal de WhatsApp
+                </a>
+                <a href="#microscopio-demo" class="px-8 py-4 rounded-2xl bg-brand-cardbg border border-white/10 hover:border-cyan-500/50 text-slate-200 hover:text-cyan-400 font-bold text-base tracking-wide transition-all duration-300 flex items-center justify-center">
+                    <i class="fa-solid fa-magnifying-glass text-sm mr-2"></i>Ver Demo ASMR
+                </a>
+            </div>
+        </div>
+        
+        <!-- Vista previa microscopio estético interactivo -->
+        <div class="lg:col-span-5 relative flex justify-center">
+            <div class="relative w-full max-w-[420px] aspect-[9/16] rounded-3xl bg-brand-cardbg border border-cyan-500/20 p-3 shadow-2xl overflow-hidden group">
+                <div class="relative w-full h-full rounded-2xl overflow-hidden bg-slate-950 flex flex-col justify-between p-4">
+                    <div class="absolute inset-0 scan-effect pointer-events-none z-10 bg-gradient-to-t from-black/60 via-transparent to-black/40"></div>
+                    
+                    <div class="relative z-20 flex justify-between items-center">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                            <span class="text-[10px] font-mono tracking-widest text-slate-300 bg-black/50 px-2 py-0.5 rounded">V-BROS-LAB: CAM-01</span>
+                        </div>
+                        <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/20">60FPS 1080P</span>
+                    </div>
+
+                    <div class="absolute inset-0 flex items-center justify-center flex-col px-4 text-center select-none">
+                        <div id="micro-screen-container" class="relative w-full aspect-square max-w-[240px] flex items-center justify-center rounded-full border-4 border-dashed border-cyan-500/40 p-4 transition-transform duration-500 group-hover:scale-105">
+                            <svg class="w-32 h-32 text-cyan-400/80 drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="25" y="25" width="50" height="50" rx="8" stroke="currentColor" stroke-width="2" class="animate-pulse"/>
+                                <circle cx="50" cy="50" r="10" stroke="currentColor" stroke-width="2" />
+                                <path d="M50 15V25M50 75V85M15 50H25M75 50H85" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                <path d="M35 35L42 42M65 35L58 42M35 65L42 58M65 65L58 58" stroke="currentColor" stroke-width="1.5"/>
+                                <circle id="solder-sparkle" cx="50" cy="50" r="2" fill="#fff" class="animate-ping" />
+                            </svg>
+                        </div>
+                        <p class="mt-4 text-xs font-mono text-cyan-300 relative z-20">ENFOCANDO COMPONENTE F1</p>
+                    </div>
+
+                    <div class="relative z-20 w-full bg-black/40 backdrop-blur-sm p-3 rounded-xl border border-white/5 space-y-2 text-left">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-cyan-500 flex items-center justify-center text-[10px] font-bold text-brand-darkbg">V</div>
+                            <span class="text-xs font-bold">@v-bros.tech</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 leading-snug">Soldando un puerto tipo C roto de un cliente bajo microscopio 🧪⚡️ #satisfying #asmr #vbros #tech</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="microscopio-demo" class="py-24 bg-brand-darkbg border-t border-b border-white/5 relative">
+    <div class="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none"></div>
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 relative z-10 text-center">
+        <div class="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-mono mb-4">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Experiencia Satisfactoria Interactiva</span>
+        </div>
+        
+        <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4">Controla el Microscopio de V-Bros</h2>
+        <p class="text-slate-400 max-w-xl mx-auto mb-10 text-sm sm:text-base">
+            Arrastra el control deslizante para comparar la suciedad y corrosión de un pin de carga dañado contra la soldadura ultra brillante realizada por Jair y Jonathan.
+        </p>
+
+        <!-- Widget deslizante antes y después -->
+        <div class="relative w-full max-w-2xl mx-auto aspect-video rounded-2xl overflow-hidden border-2 border-cyan-500/20 shadow-2xl select-none">
+            <!-- Capa Después: Limpio -->
+            <div class="absolute inset-0 w-full h-full bg-[#11131e] flex items-center justify-center">
+                <div class="w-full h-full p-4 flex flex-col items-center justify-center bg-gradient-to-br from-teal-950/20 via-slate-900 to-indigo-950/20">
+                    <div class="relative w-80 max-w-full aspect-[2/1] bg-slate-800 rounded-lg border-2 border-emerald-500 flex items-center justify-around px-4 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+                        <div class="h-10 w-3 bg-gradient-to-b from-slate-400 to-slate-200 rounded shadow-[0_0_8px_#fff]"></div>
+                        <div class="h-10 w-3 bg-gradient-to-b from-yellow-500 to-yellow-300 rounded shadow-[0_0_8px_#fbbf24]"></div>
+                        <div class="h-10 w-3 bg-gradient-to-b from-yellow-500 to-yellow-300 rounded shadow-[0_0_8px_#fbbf24]"></div>
+                        <div class="h-10 w-3 bg-gradient-to-b from-yellow-500 to-yellow-300 rounded shadow-[0_0_8px_#fbbf24]"></div>
+                        <div class="h-10 w-3 bg-gradient-to-b from-slate-400 to-slate-200 rounded shadow-[0_0_8px_#fff]"></div>
+                    </div>
+                    <span class="absolute top-4 right-4 bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono px-2.5 py-1 rounded">REPARACIÓN V-BROS (100x)</span>
+                </div>
+            </div>
+
+            <!-- Capa Antes: Dañado -->
+            <div id="before-image-layer" class="absolute inset-y-0 left-0 h-full bg-[#0d0f17] overflow-hidden border-r-2 border-cyan-400" style="width: 50%;">
+                <div class="w-[640px] md:w-[668px] h-full p-4 flex flex-col items-center justify-center bg-gradient-to-br from-red-950/20 via-slate-950 to-amber-950/20">
+                    <div class="relative w-80 max-w-full aspect-[2/1] bg-slate-900 rounded-lg border-2 border-red-500/40 flex items-center justify-around px-4">
+                        <div class="h-10 w-3 bg-emerald-950 rounded relative"><span class="absolute inset-0 bg-green-800/80 rounded animate-pulse"></span></div>
+                        <div class="h-10 w-3 bg-yellow-950 rounded relative"><span class="absolute inset-0 bg-amber-900/90 rounded"></span></div>
+                        <div class="h-10 w-3 bg-stone-900 rounded relative"><span class="absolute inset-0 bg-black/90 rounded"></span></div>
+                        <div class="h-10 w-3 bg-stone-950 rounded relative"></div>
+                        <div class="h-10 w-3 bg-emerald-950 rounded relative"><span class="absolute inset-0 bg-green-800/80 rounded animate-pulse"></span></div>
+                    </div>
+                    <span class="absolute top-4 left-4 bg-red-950/80 text-red-400 border border-red-500/30 text-[10px] font-mono px-2.5 py-1 rounded">SUCI / DAÑADO (ANTES)</span>
+                </div>
+            </div>
+
+            <input type="range" min="0" max="100" value="50" id="comparison-slider" class="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-30" oninput="handleComparisonSlider(this.value)">
+            
+            <div id="comparison-bar-badge" class="absolute top-1/2 -translate-y-1/2 pointer-events-none z-20 flex flex-col items-center justify-center text-xs font-mono" style="left: calc(50% - 20px);">
+                <div class="w-10 h-10 rounded-full bg-cyan-500 shadow-neon-cyan flex items-center justify-center text-brand-darkbg border-2 border-white">
+                    <i class="fa-solid fa-left-right text-sm"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="servicios" class="py-24 bg-brand-darkbg relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-3xl mx-auto mb-16 space-y-4">
+            <span class="text-cyan-400 text-xs font-mono uppercase tracking-widest bg-cyan-950/50 px-3 py-1.5 rounded-full border border-cyan-500/20">Lo Que Dominamos al 100%</span>
+            <h2 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">Nuestras Especialidades</h2>
+            <p class="text-slate-400 text-sm">Ofrecemos un servicio limpio, técnico y visible, de la mano de técnicos expertos.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <!-- Servicio 1: Pines de Carga -->
+            <div class="bg-brand-cardbg border border-white/5 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300 hover:-translate-y-2 group shadow-xl">
+                <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-xl mb-6 group-hover:bg-cyan-500 group-hover:text-brand-darkbg transition-all duration-300 shadow-sm group-hover:shadow-neon-cyan">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-3 group-hover:text-cyan-400 transition-colors">Pines de Carga & Puertos</h3>
+                <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">¿Tu celular no carga? Lo resolvemos retirando el puerto dañado usando nuestra estación de calor y soldando uno nuevo.</p>
+            </div>
+
+            <!-- Servicio 2: Micro-diagnóstico -->
+            <div class="bg-brand-cardbg border border-white/5 rounded-2xl p-6 hover:border-purple-500/30 transition-all duration-300 hover:-translate-y-2 group shadow-xl">
+                <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-xl mb-6 group-hover:bg-purple-500 group-hover:text-brand-darkbg transition-all duration-300 shadow-sm group-hover:shadow-neon-purple">
+                    <i class="fa-solid fa-eye"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-3 group-hover:text-purple-400 transition-colors">Hardware Clinic (Microscopio)</h3>
+                <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">Conectamos tu placa al microscopio digital para buscar componentes desprendidos, condensadores en corto o conectores sueltos.</p>
+            </div>
+
+            <!-- Servicio 3: Protectores Premium -->
+            <div class="bg-brand-cardbg border border-white/5 rounded-2xl p-6 hover:border-cyan-500/30 transition-all duration-300 hover:-translate-y-2 group shadow-xl">
+                <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-xl mb-6 group-hover:bg-cyan-500 group-hover:text-brand-darkbg transition-all duration-300 shadow-sm group-hover:shadow-neon-cyan">
+                    <i class="fa-solid fa-mobile-screen"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-3 group-hover:text-cyan-400 transition-colors">Micas de Vidrio Premium</h3>
+                <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">Instalación milimétrica de protectores cerámicos, de privacidad y cristal templado 9H. Cero burbujas, cero polvo.</p>
+            </div>
+
+            <!-- Servicio 4: Mantenimiento Químico -->
+            <div class="bg-brand-cardbg border border-white/5 rounded-2xl p-6 hover:border-purple-500/30 transition-all duration-300 hover:-translate-y-2 group shadow-xl">
+                <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-xl mb-6 group-hover:bg-purple-500 group-hover:text-brand-darkbg transition-all duration-300 shadow-sm group-hover:shadow-neon-purple">
+                    <i class="fa-solid fa-soap"></i>
+                </div>
+                <h3 class="text-lg font-bold text-white mb-3 group-hover:text-purple-400 transition-colors">Limpieza Profunda Pro</h3>
+                <p class="text-slate-400 text-xs sm:text-sm leading-relaxed mb-4">Desinfectamos altavoces obstruidos, puertos tapados de pelusa y botones pegajosos con alcohol isopropílico puro.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="cotizador" class="py-24 bg-gradient-to-b from-brand-darkbg to-brand-cardbg/20 relative">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6">
+        <div class="text-center max-w-2xl mx-auto mb-12 relative">
+            <!-- Indicador de Administrador Activo para Jair & Jonathan -->
+            <div id="admin-indicator-badge" class="hidden absolute -top-8 left-1/2 transform -translate-x-1/2 bg-brand-accentPurple text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-neon-purple animate-pulse flex items-center gap-2">
+                <span><i class="fa-solid fa-user-shield mr-1"></i> MODO CONTROL DE PRECIOS ACTIVO</span>
+                <button onclick="window.openChangePasswordModal()" class="bg-white/10 hover:bg-white/20 px-2.5 py-0.5 rounded text-[10px] uppercase font-mono pointer-events-auto">Cambiar Contraseña</button>
+            </div>
+            
+            <span class="text-cyan-400 text-xs font-mono uppercase tracking-widest">Ajustes directos a base de datos</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Cotizador de Precisión por Modelo</h2>
+            <p class="text-slate-400 text-sm">Elige tu marca, modelo y falla para obtener un presupuesto exacto sincronizado por Jair y Jonathan.</p>
+        </div>
+
+        <div class="bg-brand-cardbg border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-cyan-500"></div>
+            
+            <!-- Contenedor del flujo del Cotizador Inteligente -->
+            <div id="dynamic-quote-flow" class="transition-all duration-300">
+                <div class="flex justify-center items-center h-48 text-brand-textGray font-mono text-sm">
+                    <i class="fa-solid fa-spinner fa-spin text-2xl text-cyan-400 mr-2"></i> Cargando base de precios...
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="laboratorio" class="py-24 bg-brand-darkbg relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div class="lg:col-span-5 space-y-6 text-center lg:text-left">
+                <span class="text-purple-400 text-xs font-mono uppercase tracking-widest bg-purple-950/50 px-3 py-1.5 rounded-full border border-purple-500/20">Transparencia Científica</span>
+                <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">El Laboratorio Valero Reyes <br><span class="text-cyan-400">Jair & Jonathan</span></h2>
+                <p class="text-slate-300 leading-relaxed font-light text-sm sm:text-base">
+                    No escondemos el teléfono en cuartos traseros ni te inventamos diagnósticos falsos para cobrarte de más. Somos Jair y Jonathan Valero, dos hermanos apasionados por la precisión técnica y la honestidad radical.
+                </p>
+                <div class="border-l-2 border-cyan-400 pl-4 text-left py-2">
+                    <p class="text-xs text-slate-400 italic">"Creemos que el cliente merece ver exactamente por qué se cobra cada peso. Si podemos reparar un pin suelto en lugar de cambiar una placa completa, te lo diremos."</p>
+                    <span class="block text-xs font-mono text-cyan-400 font-bold mt-2">- Jair & Jonathan Valero Reyes</span>
+                </div>
+            </div>
+            
+            <div class="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <!-- Tarjetas de especificaciones de herramientas -->
+                <div onclick="showToolDetail('mic')" class="bg-[#121420] border border-white/5 rounded-2xl p-6 cursor-pointer hover:border-cyan-500/30 transition-all duration-300 relative group">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg mb-4"><i class="fa-solid fa-microscope"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Microscopio Digital HD</h4>
+                    <p class="text-xs text-slate-400 font-light">Inspección microscópica a 100x para detectar microfisuras en placas lógicas y circuitos de carga.</p>
+                </div>
+                <div onclick="showToolDetail('heat')" class="bg-[#121420] border border-white/5 rounded-2xl p-6 cursor-pointer hover:border-purple-500/30 transition-all duration-300 relative group">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg mb-4"><i class="fa-solid fa-fire"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Estación de Calor Calibrada</h4>
+                    <p class="text-xs text-slate-400 font-light">Flujo térmico regulado digitalmente para retirar integrados sin sobrecalentar componentes aledaños.</p>
+                </div>
+                <div onclick="showToolDetail('solder')" class="bg-[#121420] border border-white/5 rounded-2xl p-6 cursor-pointer hover:border-cyan-500/30 transition-all duration-300 relative group">
+                    <div class="w-10 h-10 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg mb-4"><i class="fa-solid fa-screwdriver"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Cautín y Estaño Pro</h4>
+                    <p class="text-xs text-slate-400 font-light">Puntas extrafinas que permiten trabajar a nivel milimétrico en microelectrónica avanzada.</p>
+                </div>
+                <div onclick="showToolDetail('alcohol')" class="bg-[#121420] border border-white/5 rounded-2xl p-6 cursor-pointer hover:border-purple-500/30 transition-all duration-300 relative group">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg mb-4"><i class="fa-solid fa-flask"></i></div>
+                    <h4 class="text-base font-bold text-white mb-2">Alcohol Isopropílico al 99%</h4>
+                    <p class="text-xs text-slate-400 font-light">Eliminación completa de humedad y residuos de sulfato sin conductividad residual.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Modal emergente para las herramientas -->
+<div id="tool-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-brand-cardbg border border-white/10 rounded-2xl max-w-md w-full p-6 relative">
+        <button onclick="closeToolModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div id="tool-modal-content" class="space-y-4 pt-4"></div>
+    </div>
+</div>
+
+<section id="asmr-hub" class="py-24 bg-gradient-to-t from-brand-darkbg via-brand-cardbg/10 to-brand-darkbg relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-2xl mx-auto mb-16 space-y-4">
+            <span class="text-cyan-400 text-xs font-mono uppercase tracking-widest bg-cyan-950/50 px-3 py-1.5 rounded-full border border-cyan-500/20">La Magia de las Redes</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Satisfying Tech Lab & ASMR</h2>
+            <p class="text-slate-400 text-sm">Nuestros videos se vuelven virales porque ver el proceso es extremadamente relajante. ¡Prueba tú mismo en nuestro simulador!</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-stretch">
+            <!-- Simulador virtual ASMR -->
+            <div class="lg:col-span-6 bg-[#0f111a] border border-white/5 rounded-3xl p-6 flex flex-col justify-between relative shadow-2xl">
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-mono text-cyan-400 tracking-wider">V-BROS SIMULATOR</span>
+                        <span class="text-[10px] bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded uppercase">Mica Anti-Burbujas</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white">Simulador ASMR: Coloca la mica protectora</h3>
+                    <p class="text-xs text-slate-400 mt-1">Desliza o haz clic para remover el polvo y sellar la mica milimétricamente en la pantalla virtual.</p>
+                </div>
+
+                <div class="my-6 relative w-full max-w-[280px] mx-auto aspect-[1/2] rounded-[36px] bg-slate-900 border-4 border-slate-700 p-2 overflow-hidden shadow-inner flex flex-col justify-between">
+                    <div class="w-20 h-4 bg-slate-800 absolute top-0 left-1/2 -translate-x-1/2 rounded-b-xl z-20"></div>
+                    <div class="relative w-full h-full rounded-[30px] overflow-hidden bg-slate-950 flex flex-col items-center justify-center">
+                        <div id="phone-dust-container" class="absolute inset-0 z-10 flex items-center justify-center flex-wrap gap-2 p-10 transition-opacity duration-700"></div>
+                        
+                        <div id="phone-bubbles" class="absolute inset-0 z-20 bg-cyan-500/5 hidden transition-all duration-500">
+                            <div class="bubble-element absolute top-1/3 left-1/4 w-12 h-12 rounded-full bg-cyan-400/20 border border-white/40 flex items-center justify-center animate-pulse cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.2)]"></div>
+                            <div class="bubble-element absolute bottom-1/3 right-1/4 w-16 h-16 rounded-full bg-cyan-400/20 border border-white/40 flex items-center justify-center animate-pulse cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.2)]"></div>
+                            <div class="bubble-element absolute top-10 right-10 w-8 h-8 rounded-full bg-cyan-400/20 border border-white/40 flex items-center justify-center animate-pulse cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.2)]"></div>
+                        </div>
+
+                        <div id="phone-clean-state" class="absolute inset-0 z-30 hidden bg-gradient-to-b from-indigo-950/20 via-slate-950 to-emerald-950/20 flex flex-col items-center justify-center text-center p-4">
+                            <i class="fa-solid fa-circle-check text-4xl text-emerald-400 animate-bounce mb-2"></i>
+                            <span class="text-xs font-mono text-emerald-400 uppercase tracking-widest font-bold">Instalación Perfecta</span>
+                            <span class="text-[10px] text-slate-400 mt-1">Cero Burbujas, Cero Polvo</span>
+                        </div>
+                        
+                        <div id="asmr-simulator-instructions" class="relative z-10 text-center px-4 space-y-4">
+                            <i class="fa-solid fa-hand-pointer text-3xl text-cyan-400 animate-pulse"></i>
+                            <p class="text-xs text-slate-300">Haz clic en "1. Limpiar Polvo" para desinfectar la pantalla.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
+                        <button onclick="actionCleanDust()" id="btn-dust" class="py-2 rounded-lg bg-cyan-950 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-900 transition-colors">1. Limpiar Polvo</button>
+                        <button onclick="actionApplyMica()" id="btn-apply" class="py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed transition-colors" disabled>2. Aplicar Mica</button>
+                        <button onclick="actionPopBubbles()" id="btn-pop" class="py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed transition-colors" disabled>3. Eliminar Aire</button>
+                    </div>
+                    <button onclick="resetASMRSimulator()" class="w-full py-2.5 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-mono text-slate-300 transition-colors">Reiniciar Simulación</button>
+                </div>
+            </div>
+
+            <!-- Feed de historias y videos virales -->
+            <div class="lg:col-span-6 flex flex-col justify-between space-y-6">
+                <h3 class="text-xl font-bold text-white font-mono flex items-center gap-2"><i class="fa-solid fa-play text-red-500"></i> FEED DE HISTORIAS VIRALES</h3>
+                <div class="bg-brand-cardbg border border-white/5 rounded-2xl p-5 flex items-start gap-4 hover:border-cyan-500/20 transition-all">
+                    <div class="w-16 h-24 rounded-lg bg-slate-950 flex-shrink-0 relative overflow-hidden flex items-center justify-center border border-white/10">
+                        <i class="fa-solid fa-circle-play text-xl text-cyan-400 absolute z-10"></i>
+                    </div>
+                    <div class="space-y-2 flex-grow">
+                        <span class="text-xs font-bold text-white block">POV: Tu celular no carga por dentro</span>
+                        <p class="text-xs text-slate-400 leading-normal">"Este cliente trajo su celular porque no cargaba. Solo era un pin de carga suelto en placa. ¡Miren cómo fluye el estaño que aplicó Jonathan!"</p>
+                    </div>
+                </div>
+                <div class="bg-brand-cardbg border border-white/5 rounded-2xl p-5 flex items-start gap-4 hover:border-purple-500/20 transition-all">
+                    <div class="w-16 h-24 rounded-lg bg-slate-950 flex-shrink-0 relative overflow-hidden flex items-center justify-center border border-white/10">
+                        <i class="fa-solid fa-circle-play text-xl text-purple-400 absolute z-10"></i>
+                    </div>
+                    <div class="space-y-2 flex-grow">
+                        <span class="text-xs font-bold text-white block">El sonido más satisfactorio del día</span>
+                        <p class="text-xs text-slate-400 leading-normal">"Removiendo una mica templada súper estrellada. Desinfección completa de pantalla y Jair coloca el nuevo protector cerámico sin polvo."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="resenas-clientes" class="py-24 bg-brand-darkbg relative border-t border-white/5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center max-w-2xl mx-auto mb-12 space-y-4">
+            <span class="text-cyan-400 text-xs font-mono uppercase tracking-widest bg-cyan-950/50 px-3 py-1.5 rounded-full border border-cyan-500/20">Evidencia de Clientes Reales</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Mesa de Transparencia Digital</h2>
+            <p class="text-slate-400 text-sm">Esta sección muestra reseñas verídicas escritas y enviadas directamente por clientes reales a nuestra base de datos en tiempo real.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            <!-- Formulario de opiniones reales -->
+            <div class="lg:col-span-5 bg-[#121420] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+                <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-cyan-400"></i> Deja tu Reseña Real</h3>
+                <p class="text-xs text-slate-400 mb-6">Comparte tu experiencia real del servicio recibido por Jair y Jonathan para que aparezca en nuestro muro de transparencia.</p>
+
+                <form id="review-submission-form" onsubmit="handleReviewSubmit(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-mono text-slate-300 mb-1">Tu Nombre *</label>
+                            <input type="text" id="rev-name" required placeholder="Ej. Alejandro A." class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-mono text-slate-300 mb-1">Celular Reparado *</label>
+                            <input type="text" id="rev-device" required placeholder="Ej. iPhone 14 Pro" class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-mono text-slate-300 mb-1">Calificación *</label>
+                        <div class="flex items-center space-x-2 text-xl" id="star-selector-container">
+                            <i class="fa-solid fa-star text-amber-400 cursor-pointer transition-transform hover:scale-110" data-index="1" onclick="selectStars(1)"></i>
+                            <i class="fa-solid fa-star text-amber-400 cursor-pointer transition-transform hover:scale-110" data-index="2" onclick="selectStars(2)"></i>
+                            <i class="fa-solid fa-star text-amber-400 cursor-pointer transition-transform hover:scale-110" data-index="3" onclick="selectStars(3)"></i>
+                            <i class="fa-solid fa-star text-amber-400 cursor-pointer transition-transform hover:scale-110" data-index="4" onclick="selectStars(4)"></i>
+                            <i class="fa-solid fa-star text-amber-400 cursor-pointer transition-transform hover:scale-110" data-index="5" onclick="selectStars(5)"></i>
+                        </div>
+                        <input type="hidden" id="rev-rating" value="5">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-mono text-slate-300 mb-1">Tu Experiencia *</label>
+                        <textarea id="rev-text" required rows="3" placeholder="Cuéntanos qué tal quedó el puerto de carga o la mica que te instalaron..." class="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors resize-none"></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-brand-darkbg font-extrabold text-sm shadow-neon-cyan transition-all duration-300 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-up"></i><span>Publicar Reseña Real</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Feed en tiempo real de testimonios reales -->
+            <div class="lg:col-span-7 space-y-6">
+                <div class="flex items-center justify-between border-b border-white/5 pb-4">
+                    <h3 class="text-lg font-mono text-white flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse"></span>
+                        <span>MESA DE CLIENTES EN TIEMPO REAL</span>
+                    </h3>
+                    <span id="reviews-counter-label" class="text-xs font-mono text-slate-400 font-bold">Reviews (0)</span>
+                </div>
+
+                <div id="reviews-feed-container" class="space-y-6">
+                    <div class="text-center py-12 text-brand-textGray font-mono text-sm">
+                        <i class="fa-solid fa-spinner fa-spin text-cyan-400 text-xl mr-2"></i> Cargando testimonios de clientes...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer class="bg-brand-darkbg border-t border-white/5 py-16 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div class="md:col-span-2 space-y-4">
+            <a href="#" class="flex items-center space-x-3 group">
+                <div class="w-12 h-12 flex items-center justify-center group-hover:rotate-6 transition-transform duration-300">
+                    <svg class="w-11 h-11 drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" stroke="url(#logo-grad-header)" stroke-width="4" stroke-linejoin="round" fill="#121420" fill-opacity="0.95"/>
+                        <path d="M30 34 L48 68 L66 34" stroke="url(#logo-grad-header)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M48 34 H60 C67 34 69 47 62 50 C69 52 67 68 54 68 H48" stroke="url(#logo-grad-header)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="30" cy="34" r="4.5" fill="#00f0ff" />
+                        <circle cx="66" cy="34" r="4.5" fill="#8b5cf6" />
+                        <circle cx="54" cy="68" r="4.5" fill="#8b5cf6" />
+                    </svg>
+                </div>
+                <div>
+                    <span class="text-xl font-extrabold tracking-wider bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">V-BROS</span>
+                    <span class="text-xs block text-slate-400 font-mono tracking-widest">TECH LAB & CLINIC</span>
+                </div>
+            </a>
+            <p class="text-xs text-slate-400 max-w-sm">No hacemos magia, hacemos ciencia y soldadura de precisión. Ofrecemos el servicio más transparente de la zona, respaldado por Jair y Jonathan Valero Reyes.</p>
+        </div>
+
+        <div class="space-y-4 text-sm">
+            <h4 class="font-bold text-white tracking-wider uppercase font-mono text-xs text-cyan-400">Canal de Contenido</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">
+                📧 Correo: <a href="mailto:valebros65@gmail.com" class="text-white hover:underline font-bold">valebros65@gmail.com</a><br>
+                💬 Síguenos en nuestro canal de WhatsApp para ver videos diarios de reparaciones satisfactiva y técnicas.
+            </p>
+        </div>
+
+        <div class="space-y-4 text-sm">
+            <h4 class="font-bold text-white tracking-wider uppercase font-mono text-xs text-purple-400">Laboratorio</h4>
+            <p class="text-xs text-slate-400 leading-relaxed font-bold">📍 Av. Tech Lab #404, Juárez, Nuevo León, México.<br>Trae tu teléfono o envíanoslo para un diagnóstico completo.</p>
+        </div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-[10px] text-slate-500 font-mono">
+        <p>© 2026 V-BROS TECH LAB. Todos los derechos reservados. Diseñado para la era de la transparencia por Jair y Jonathan Reyes.</p>
+        <!-- Candado de acceso exclusivo para Jair y Jonathan -->
+        <button onclick="openAdminLoginModal()" class="hover:text-cyan-400 transition-colors mt-4 sm:mt-0 text-slate-600 hover:scale-110 transition-transform" title="Acceso Exclusivo de Administrador de Precios">
+            <i class="fa-solid fa-lock text-sm"></i>
+        </button>
+    </div>
+</footer>
+
+<!-- Modal de Entrada de Datos Personalizados (Sustituto de prompt/alert) -->
+<div id="custom-input-modal" class="hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+    <div class="bg-brand-cardbg p-6 rounded-2xl w-full max-w-md border border-brand-accent/30 shadow-neon-cyan">
+        <h3 id="cim-title" class="text-xl font-bold mb-4 text-white">Editar...</h3>
+        <div id="cim-fields-container" class="space-y-4 mb-6"></div>
+        <div class="flex justify-end space-x-3 text-xs font-bold">
+            <button onclick="closeCustomInputModal()" class="px-5 py-2 text-slate-400 hover:text-white transition">Cancelar</button>
+            <button id="cim-save-btn" class="px-5 py-2.5 bg-brand-accent text-black font-extrabold rounded-xl hover:bg-cyan-400 transition shadow-neon-cyan">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Login para Jair & Jonathan (Email/Password) -->
+<div id="admin-login-modal" class="hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-brand-cardbg p-8 rounded-3xl w-full max-w-md border border-brand-accentPurple/30 shadow-neon-purple">
+        <div class="text-center mb-6">
+            <div class="w-16 h-16 bg-brand-accentPurple/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fa-solid fa-user-shield text-2xl text-brand-accentPurple"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-white">Acceso Admin de Precios</h3>
+            <p class="text-xs text-slate-400 mt-1">Exclusivo para Jair y Jonathan (valebros65@gmail.com)</p>
+        </div>
+        <div class="space-y-4 text-xs font-semibold">
+            <div>
+                <label class="block text-slate-300 mb-1">Correo Electrónico</label>
+                <input type="email" id="admin-email" placeholder="valebros65@gmail.com" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-accentPurple transition-colors">
+            </div>
+            <div>
+                <label class="block text-xs text-slate-300 mb-1">Contraseña</label>
+                <input type="password" id="admin-password" placeholder="••••••••" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-accentPurple transition-colors">
+            </div>
+            <div id="admin-login-error" class="hidden text-red-400 text-xs text-center mt-2 bg-red-500/10 p-2 rounded border border-red-500/20"></div>
+            <button onclick="attemptAdminLogin()" id="admin-login-btn" class="w-full py-3.5 mt-4 bg-gradient-to-r from-brand-accentPurple to-purple-500 hover:from-purple-400 hover:to-purple-400 rounded-xl font-bold text-white transition-all transform hover:scale-[1.02] shadow-neon-purple text-xs tracking-wider uppercase">Iniciar Sesión</button>
+            <button onclick="closeAdminLoginModal()" class="w-full py-2 text-slate-400 hover:text-white text-xs transition">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Cambiar Contraseña de Admin -->
+<div id="change-password-modal" class="hidden fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-brand-cardbg p-6 rounded-3xl w-full max-w-md border border-brand-accentPurple/30 shadow-neon-purple">
+        <h3 class="text-xl font-bold text-white mb-2">Cambiar Contraseña</h3>
+        <p class="text-xs text-slate-400 mb-4">Establece tu nueva contraseña de acceso administrativo segura.</p>
+        <div class="space-y-4 text-xs font-semibold">
+            <div>
+                <label class="block text-slate-300 mb-1">Nueva Contraseña</label>
+                <input type="password" id="new-admin-password" placeholder="Mínimo 6 caracteres" class="w-full bg-slate-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-brand-accentPurple transition-colors">
+            </div>
+            <div id="change-pass-error" class="hidden text-red-400 text-xs text-center mt-2 bg-red-500/10 p-2 rounded border border-red-500/20"></div>
+            <button onclick="window.submitChangePassword()" class="w-full py-3 mt-4 bg-brand-accentPurple hover:bg-purple-500 rounded-xl font-bold text-white transition-all shadow-neon-purple text-xs uppercase tracking-wider">Actualizar Contraseña</button>
+            <button onclick="window.closeChangePasswordModal()" class="w-full py-2 text-slate-400 hover:text-white text-xs transition">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle Mobile Menu
+    function toggleMobileMenu() {
+        const menu = document.getElementById('mobile-menu');
+        const icon = document.getElementById('menu-icon');
+        menu.classList.toggle('hidden');
+        icon.className = menu.classList.contains('hidden') ? "fa-solid fa-bars text-xl" : "fa-solid fa-xmark text-xl";
+    }
+
+    // Microscope Comparison Slider Logic
+    function handleComparisonSlider(value) {
+        document.getElementById('before-image-layer').style.width = value + '%';
+        document.getElementById('comparison-bar-badge').style.left = `calc(${value}% - 20px)`;
+    }
+
+    // Showcase Tool Dynamic Detail Pop-up
+    function showToolDetail(key) {
+        const toolsData = {
+            mic: { title: "Microscopio Digital HD", icon: "fa-solid fa-microscope text-cyan-400", desc: "Aumento de hasta 100x para ver pistas de carga rotas de forma HD." },
+            heat: { title: "Estación de Calor Calibrada", icon: "fa-solid fa-fire text-purple-400", desc: "Retiro seguro de integrados sin deformar plásticos de placa." },
+            solder: { title: "Cautín y Estaño Pro", icon: "fa-solid fa-screwdriver text-cyan-400", desc: "Soldadura milimétrica precisa con estaño brillante premium." },
+            alcohol: { title: "Alcohol Isopropílico al 99%", icon: "fa-solid fa-flask text-purple-400", desc: "Disuelve óxido y sulfatos leves de manera segura." }
+        };
+        const data = toolsData[key];
+        document.getElementById('tool-modal-content').innerHTML = `
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center text-xl"><i class="${data.icon}"></i></div>
+                <h4 class="text-lg font-bold text-white">${data.title}</h4>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">${data.desc}</p>
+        `;
+        document.getElementById('tool-modal').classList.remove('hidden');
+    }
+
+    function closeToolModal() { 
+        document.getElementById('tool-modal').classList.add('hidden'); 
+    }
+
+    // ASMR Mica Protector Simulator Code
+    let currentDustParticlesCount = 12;
+    function initDustSimulation() {
+        const container = document.getElementById('phone-dust-container');
+        if (!container) return;
+        container.innerHTML = '';
+        for (let i = 0; i < currentDustParticlesCount; i++) {
+            const dust = document.createElement('div');
+            dust.className = 'w-1.5 h-1.5 bg-yellow-600/60 rounded-full absolute transition-opacity duration-300';
+            dust.style.top = Math.random() * 80 + 10 + '%';
+            dust.style.left = Math.random() * 80 + 10 + '%';
+            container.appendChild(dust);
+        }
+    }
+
+    function actionCleanDust() {
+        document.querySelectorAll('#phone-dust-container div').forEach((p, idx) => {
+            setTimeout(() => { p.style.opacity = '0'; }, idx * 100);
+        });
+        setTimeout(() => {
+            document.getElementById('phone-dust-container').style.opacity = '0';
+            document.getElementById('btn-dust').className = "py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed";
+            document.getElementById('btn-dust').disabled = true;
+            document.getElementById('btn-apply').className = "py-2 rounded-lg bg-cyan-950 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-900";
+            document.getElementById('btn-apply').disabled = false;
+        }, 1200);
+    }
+
+    function actionApplyMica() {
+        document.getElementById('phone-bubbles').classList.remove('hidden');
+        document.getElementById('asmr-simulator-instructions').classList.add('hidden');
+        document.getElementById('btn-apply').className = "py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed";
+        document.getElementById('btn-apply').disabled = true;
+        document.getElementById('btn-pop').className = "py-2 rounded-lg bg-purple-950 text-purple-400 border border-purple-500/20 hover:bg-purple-900";
+        document.getElementById('btn-pop').disabled = false;
+    }
+
+    function actionPopBubbles() {
+        const bubbles = document.querySelectorAll('.bubble-element');
+        let remainingBubbles = bubbles.length;
+        bubbles.forEach((bubble) => {
+            bubble.addEventListener('click', function() {
+                bubble.style.transform = 'scale(0)'; 
+                bubble.style.opacity = '0'; 
+                remainingBubbles--;
+                if (remainingBubbles === 0) {
+                    setTimeout(() => {
+                        document.getElementById('phone-bubbles').classList.add('hidden');
+                        document.getElementById('phone-clean-state').classList.remove('hidden');
+                        document.getElementById('btn-pop').className = "py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed";
+                        document.getElementById('btn-pop').disabled = true;
+                    }, 500);
+                }
+            }, { once: true });
+        });
+    }
+
+    function resetASMRSimulator() {
+        document.getElementById('phone-dust-container').style.opacity = '1';
+        document.getElementById('phone-bubbles').classList.add('hidden');
+        document.getElementById('phone-clean-state').classList.add('hidden');
+        document.getElementById('asmr-simulator-instructions').classList.remove('hidden');
+        document.getElementById('btn-dust').className = "py-2 rounded-lg bg-cyan-950 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-900";
+        document.getElementById('btn-dust').disabled = false;
+        document.getElementById('btn-apply').className = "py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed";
+        document.getElementById('btn-apply').disabled = true;
+        document.getElementById('btn-pop').className = "py-2 rounded-lg bg-slate-800 text-slate-400 border border-white/5 cursor-not-allowed";
+        document.getElementById('btn-pop').disabled = true;
+        initDustSimulation();
+    }
+
+    // Toast notifications launcher
+    function showToast(message) {
+        const container = document.getElementById('toast-container');
+        if (!container) return; // Salvaguarda
+        const toast = document.createElement('div');
+        toast.className = 'bg-brand-cardbg border border-cyan-500/30 text-white px-4 py-3 rounded-xl shadow-lg text-xs font-mono flex items-center space-x-2 animate-bounce';
+        toast.innerHTML = `<i class="fa-solid fa-bell text-cyan-400"></i> <span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.remove('animate-bounce'); 
+            toast.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
+
+    window.addEventListener('load', () => { 
+        initDustSimulation(); 
+    });
+</script>
+</body>
+</html>
